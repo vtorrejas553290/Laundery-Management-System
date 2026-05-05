@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+input, input:focus, input:active {
+    color: #111827 !important;
+    background-color: #e8f2ff !important;
+}
