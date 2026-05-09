@@ -16,7 +16,11 @@ class TransactionController extends Controller
 {
     public function index()
     {
-        $transactions = Transaction::with(['customer', 'serviceType', 'staff', 'status', 'extraItems'])->orderBy('created_at', 'desc')->get();
+        // Use the view for transaction details
+        $transactions = DB::table('vw_transaction_details')
+            ->orderBy('transaction_date', 'desc')
+            ->get();
+        
         $customers = Customer::all();
         $services = ServiceType::with('category')->get();
         $staff = Staff::all();
@@ -28,39 +32,69 @@ class TransactionController extends Controller
 
     public function show($id)
     {
-        $transaction = Transaction::with(['customer', 'serviceType', 'staff', 'status', 'extraItems'])
-            ->where('id', $id)
+        // Use the view for transaction details
+        $transaction = DB::table('vw_transaction_details')
+            ->where('transaction_id', $id)
             ->first();
+        
+        // Get extra items separately using the extra items view
+        $extraItems = DB::table('vw_transaction_extra_items')
+            ->where('transaction_id', $id)
+            ->get();
         
         if (!$transaction) {
             return response()->json(['error' => 'Transaction not found'], 404);
         }
         
+        // Get the full transaction for relationships needed in edit
+        $fullTransaction = Transaction::with(['customer', 'serviceType', 'staff', 'status', 'extraItems'])
+            ->where('id', $id)
+            ->first();
+        
+        // Calculate service total properly
+        $servicePrice = $fullTransaction->serviceType->price_per_load ?? 0;
+        $numberOfLoads = $transaction->number_of_loads ?? $fullTransaction->number_of_loads ?? 0;
+        $serviceTotal = $servicePrice * $numberOfLoads;
+        $extraTotal = (float) $extraItems->sum('subtotal');
+        $grandTotal = $serviceTotal + $extraTotal;
+        
         return response()->json([
-            'id' => $transaction->id,
-            'customer_id' => $transaction->customer_id,
-            'customer_name' => $transaction->customer ? $transaction->customer->first_name . ' ' . $transaction->customer->last_name : 'N/A',
-            'service_type_id' => $transaction->service_type_id,
-            'service_name' => $transaction->serviceType ? $transaction->serviceType->name : 'N/A',
-            'staff_id' => $transaction->staff_id,
-            'staff_name' => $transaction->staff ? $transaction->staff->first_name . ' ' . $transaction->staff->last_name : 'N/A',
-            'status_id' => $transaction->status_id,
-            'status_name' => $transaction->status ? $transaction->status->status_name : 'N/A',
+            'id' => $transaction->transaction_id,
+            'customer_id' => $fullTransaction->customer_id,
+            'customer_name' => $transaction->customer_name,
+            'service_type_id' => $fullTransaction->service_type_id,
+            'service_name' => $transaction->service_type,
+            'staff_id' => $fullTransaction->staff_id,
+            'staff_name' => $transaction->staff_name,
+            'status_id' => $fullTransaction->status_id,
+            'status_name' => $transaction->transaction_status,
             'weight' => (float) $transaction->weight,
-            'number_of_loads' => (int) $transaction->number_of_loads,
-            'total_amount' => (float) $transaction->total_amount,
-            'remarks' => $transaction->remarks ?? '',
+            'number_of_loads' => (int) $numberOfLoads,
+            'total_amount' => (float) $grandTotal,
+            'remarks' => $fullTransaction->remarks ?? '',
             'transaction_date' => $transaction->transaction_date,
-            'extra_items_formatted' => $transaction->extraItems->map(function($item) {
+            'service_price' => (float) $servicePrice,
+            'service_total' => (float) $serviceTotal,
+            'extra_total' => (float) $extraTotal,
+            'extra_items_formatted' => $extraItems->map(function($item) {
                 return [
-                    'id' => $item->id,
+                    'id' => $item->extra_item_id ?? $item->transaction_extra_item_id,
                     'item_name' => $item->item_name,
-                    'price' => (float) $item->price,
-                    'quantity' => (int) $item->pivot->quantity,
-                    'subtotal' => (float) $item->pivot->subtotal
+                    'price' => (float) $item->item_price,
+                    'quantity' => (int) $item->quantity,
+                    'subtotal' => (float) $item->subtotal
                 ];
             })
         ]);
+    }
+
+    public function getExtraItemsTotal($id)
+    {
+        $extraTotal = DB::table('vw_transaction_extra_items')
+            ->where('transaction_id', $id)
+            ->sum('subtotal');
+        
+        return response()->json(['extra_total' => (float) $extraTotal]);
     }
 
     public function store(Request $request)
@@ -70,56 +104,70 @@ class TransactionController extends Controller
             'service_type_id' => 'required|exists:service_types,id',
             'staff_id' => 'required|exists:staff,id',
             'status_id' => 'required|exists:statuses,id',
-            'weight' => 'required|numeric|min:0',
-            'number_of_loads' => 'required|integer|min:1',
-            'total_amount' => 'required|numeric|min:0',
+            'weight' => 'nullable|numeric|min:0',
+            'number_of_loads' => 'nullable|integer|min:1',
             'remarks' => 'nullable|string',
             'extra_items' => 'nullable|array',
         ]);
 
-        // Generate new ID (TR1, TR2, TR3, etc.)
-        $lastTransaction = Transaction::orderBy('id', 'desc')->first();
-        if ($lastTransaction) {
-            $lastNumber = intval(substr($lastTransaction->id, 2));
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
+        // Generate new ID (TR1, TR2, TR3, etc.) - FIXED VERSION
+        // Get all transaction IDs and find the highest number
+        $allTransactions = Transaction::all();
+        $maxNumber = 0;
+        
+        foreach ($allTransactions as $transaction) {
+            // Extract number from ID (TR1 -> 1, TR10 -> 10)
+            $number = intval(substr($transaction->id, 2));
+            if ($number > $maxNumber) {
+                $maxNumber = $number;
+            }
         }
+        
+        $newNumber = $maxNumber + 1;
         $newId = 'TR' . $newNumber;
 
         DB::beginTransaction();
         try {
+            // Let the database trigger handle number_of_loads and total_amount
             $transaction = Transaction::create([
                 'id' => $newId,
                 'customer_id' => $validated['customer_id'],
                 'service_type_id' => $validated['service_type_id'],
                 'staff_id' => $validated['staff_id'],
                 'status_id' => $validated['status_id'],
-                'weight' => $validated['weight'],
-                'number_of_loads' => $validated['number_of_loads'],
-                'total_amount' => $validated['total_amount'],
+                'weight' => $validated['weight'] ?? null,
+                'number_of_loads' => $validated['number_of_loads'] ?? null,
+                'total_amount' => 0, // Placeholder - trigger will calculate
                 'remarks' => $validated['remarks'],
                 'transaction_date' => now()->format('Y-m-d'),
                 'payment_status' => 'Pending',
             ]);
             
-            // Handle extra items if any
+            // Refresh to get trigger-calculated values
+            $transaction->refresh();
+            
             if (isset($validated['extra_items']) && !empty($validated['extra_items'])) {
                 foreach ($validated['extra_items'] as $item) {
                     $extraItem = ExtraItem::find($item['id']);
                     if ($extraItem) {
-                        $subtotal = $extraItem->price * $item['quantity'];
+                        // Let trigger calculate subtotal
                         $transaction->extraItems()->attach($extraItem->id, [
                             'id' => 'TEI' . time() . rand(10, 99),
                             'quantity' => $item['quantity'],
-                            'subtotal' => $subtotal
+                            'subtotal' => 0 // Trigger will calculate
                         ]);
                     }
                 }
             }
             
             DB::commit();
-            return response()->json(['success' => true, 'transaction' => $transaction]);
+            
+            // Get the created transaction from the view for response
+            $createdTransaction = DB::table('vw_transaction_details')
+                ->where('transaction_id', $newId)
+                ->first();
+            
+            return response()->json(['success' => true, 'transaction' => $createdTransaction]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -139,45 +187,60 @@ class TransactionController extends Controller
             'service_type_id' => 'required|exists:service_types,id',
             'staff_id' => 'required|exists:staff,id',
             'status_id' => 'required|exists:statuses,id',
-            'weight' => 'required|numeric|min:0',
-            'number_of_loads' => 'required|integer|min:1',
-            'total_amount' => 'required|numeric|min:0',
+            'weight' => 'nullable|numeric|min:0',
+            'number_of_loads' => 'nullable|integer|min:1',
             'remarks' => 'nullable|string',
             'extra_items' => 'nullable|array',
         ]);
 
         DB::beginTransaction();
         try {
-            $transaction->update([
+            // Prepare update data - let trigger handle calculations
+            $updateData = [
                 'customer_id' => $validated['customer_id'],
                 'service_type_id' => $validated['service_type_id'],
                 'staff_id' => $validated['staff_id'],
                 'status_id' => $validated['status_id'],
-                'weight' => $validated['weight'],
-                'number_of_loads' => $validated['number_of_loads'],
-                'total_amount' => $validated['total_amount'],
+                'weight' => $validated['weight'] ?? null,
                 'remarks' => $validated['remarks'],
-            ]);
+            ];
             
-            // Sync extra items
+            // Only set number_of_loads if provided (for non-wash services)
+            if (isset($validated['number_of_loads'])) {
+                $updateData['number_of_loads'] = $validated['number_of_loads'];
+            }
+            
+            // DO NOT set total_amount - let the trigger calculate it
+            $transaction->update($updateData);
+            
+            // Update extra items
             $transaction->extraItems()->detach();
             
             if (isset($validated['extra_items']) && !empty($validated['extra_items'])) {
                 foreach ($validated['extra_items'] as $item) {
                     $extraItem = ExtraItem::find($item['id']);
                     if ($extraItem) {
-                        $subtotal = $extraItem->price * $item['quantity'];
+                        // Let trigger calculate subtotal
                         $transaction->extraItems()->attach($extraItem->id, [
                             'id' => 'TEI' . time() . rand(10, 99),
                             'quantity' => $item['quantity'],
-                            'subtotal' => $subtotal
+                            'subtotal' => 0 // Trigger will calculate
                         ]);
                     }
                 }
             }
             
+            // Refresh to get trigger-calculated values
+            $transaction->refresh();
+            
             DB::commit();
-            return response()->json(['success' => true, 'transaction' => $transaction]);
+            
+            // Get the updated transaction from the view for response
+            $updatedTransaction = DB::table('vw_transaction_details')
+                ->where('transaction_id', $id)
+                ->first();
+            
+            return response()->json(['success' => true, 'transaction' => $updatedTransaction]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -198,10 +261,9 @@ class TransactionController extends Controller
     
     public function getServicePrice($id)
     {
-        $service = ServiceType::find($id);
-        if ($service) {
-            return response()->json(['price' => $service->price_per_load]);
-        }
-        return response()->json(['price' => 0]);
+        $transaction = Transaction::with('serviceType')->find($id);
+        $servicePrice = $transaction && $transaction->serviceType ? $transaction->serviceType->price_per_load : 0;
+        
+        return response()->json(['service_price' => (float) $servicePrice]);
     }
 }

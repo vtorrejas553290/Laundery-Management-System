@@ -13,6 +13,47 @@
             </button>
         </div>
 
+        <!-- Statistics Summary -->
+        <div class="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-blue-50 rounded-lg border border-blue-200 p-6">
+                <h3 class="text-sm font-medium text-blue-800 mb-2">Total Customers</h3>
+                <p class="text-2xl font-bold text-blue-900" id="totalCustomersCount">{{ $customers->count() }}</p>
+            </div>
+            <div class="bg-green-50 rounded-lg border border-green-200 p-6">
+                <h3 class="text-sm font-medium text-green-800 mb-2">New This Month</h3>
+                <p class="text-2xl font-bold text-green-900" id="newThisMonthCount">
+                    {{ $customers->filter(function($customer) {
+                        return $customer->created_at && $customer->created_at->isCurrentMonth();
+                    })->count() }}
+                </p>
+            </div>
+            <div class="bg-purple-50 rounded-lg border border-purple-200 p-6">
+                <h3 class="text-sm font-medium text-purple-800 mb-2">Most Recent</h3>
+                <p class="text-lg font-semibold text-purple-900 truncate" id="mostRecentCustomer">
+                    {{ $customers->first() ? $customers->first()->first_name . ' ' . $customers->first()->last_name : '—' }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="mb-4 flex flex-wrap gap-4 items-center justify-between">
+            <div class="flex gap-4">
+                <div class="relative">
+                    <input type="text" id="searchInput" placeholder="Search by name, ID, or contact number..." 
+                        class="w-80 px-4 py-2 pl-10 pr-4 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <button onclick="clearSearch()" class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+                    Clear Search
+                </button>
+            </div>
+            <div class="text-sm text-gray-500">
+                Showing <span id="visibleCount">0</span> of <span id="totalVisibleCount">0</span> customers
+            </div>
+        </div>
+
         <!-- Customers Table -->
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
             <div class="p-6">
@@ -30,15 +71,21 @@
                                 <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200">
+                        <tbody id="customersTableBody" class="divide-y divide-gray-200">
                             @forelse($customers as $customer)
-                            <tr class="hover:bg-gray-50 transition-colors duration-200">
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $customer->id }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ $customer->first_name }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $customer->middle_name ?? '—' }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ $customer->last_name }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $customer->contact_number }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $customer->created_at ? \Carbon\Carbon::parse($customer->created_at)->format('M d, Y') : '—' }}</td>
+                            <tr class="hover:bg-gray-50 transition-colors duration-200 customer-row" 
+                                data-id="{{ $customer->id }}"
+                                data-first-name="{{ strtolower($customer->first_name) }}"
+                                data-middle-name="{{ strtolower($customer->middle_name ?? '') }}"
+                                data-last-name="{{ strtolower($customer->last_name) }}"
+                                data-contact="{{ strtolower($customer->contact_number) }}"
+                                data-full-name="{{ strtolower($customer->first_name . ' ' . $customer->last_name) }}">
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900 customer-id">{{ $customer->id }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 first-name">{{ $customer->first_name }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600 middle-name">{{ $customer->middle_name ?? '—' }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 last-name">{{ $customer->last_name }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600 contact-number">{{ $customer->contact_number }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600 created-date">{{ $customer->created_at ? \Carbon\Carbon::parse($customer->created_at)->format('M d, Y') : '—' }}</td>
                                 <td class="px-4 py-3 text-right">
                                     <div class="flex justify-end gap-2">
                                         <button onclick="viewCustomer('{{ $customer->id }}')" class="text-green-600 hover:text-green-800 p-1">
@@ -61,35 +108,35 @@
                                 </td>
                             </tr>
                             @empty
-                            <tr>
+                            <tr id="noRecordsRow">
                                 <td colspan="7" class="px-4 py-8 text-center text-gray-500">No customers found. Click "Add Customer" to create one.</td>
-                            <tr>
+                            </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-        
-        <!-- Statistics Summary -->
-        <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-blue-50 rounded-lg border border-blue-200 p-6">
-                <h3 class="text-sm font-medium text-blue-800 mb-2">Total Customers</h3>
-                <p class="text-2xl font-bold text-blue-900">{{ $customers->count() }}</p>
-            </div>
-            <div class="bg-green-50 rounded-lg border border-green-200 p-6">
-                <h3 class="text-sm font-medium text-green-800 mb-2">New This Month</h3>
-                <p class="text-2xl font-bold text-green-900">
-                    {{ $customers->filter(function($customer) {
-                        return $customer->created_at && $customer->created_at->isCurrentMonth();
-                    })->count() }}
-                </p>
-            </div>
-            <div class="bg-purple-50 rounded-lg border border-purple-200 p-6">
-                <h3 class="text-sm font-medium text-purple-800 mb-2">Most Recent</h3>
-                <p class="text-lg font-semibold text-purple-900 truncate">
-                    {{ $customers->first() ? $customers->first()->first_name . ' ' . $customers->first()->last_name : '—' }}
-                </p>
+                
+                <!-- Pagination -->
+                <div id="paginationContainer" class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
+                    <div class="flex flex-1 justify-between sm:hidden">
+                        <button id="prevMobileBtn" class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</button>
+                        <button id="nextMobileBtn" class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Next</button>
+                    </div>
+                    <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-sm text-gray-700">
+                                Showing <span id="pageStart" class="font-medium">0</span>
+                                to <span id="pageEnd" class="font-medium">0</span>
+                                of <span id="totalRecords" class="font-medium">0</span> results
+                            </p>
+                        </div>
+                        <div>
+                            <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" id="paginationNumbers">
+                                <!-- Pagination buttons will be generated here -->
+                            </nav>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -99,9 +146,9 @@
         <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);"></div>
         
         <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1rem;">
-            <div style="position: relative; background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 28rem; width: 100%; margin: auto;">
+            <div style="position: relative; background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 28rem; width: 100%; margin: auto; max-height: 90vh; overflow-y: auto;">
                 
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: white; z-index: 10;">
                     <h3 style="font-size: 1.25rem; font-weight: 600; color: #111827;" id="modal-title">Add New Customer</h3>
                     <button onclick="closeModal()" style="color: #9ca3af; background: none; border: none; cursor: pointer;">
                         <svg style="width: 1.5rem; height: 1.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -199,9 +246,9 @@
         <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);"></div>
         
         <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1rem;">
-            <div style="position: relative; background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 48rem; width: 100%; margin: auto;">
+            <div style="position: relative; background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 48rem; width: 100%; margin: auto; max-height: 90vh; overflow-y: auto;">
                 
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: white; z-index: 10;">
                     <h3 style="font-size: 1.25rem; font-weight: 600; color: #111827;">Customer Details</h3>
                     <button onclick="closeViewCustomerModal()" style="color: #9ca3af; background: none; border: none; cursor: pointer;">
                         <svg style="width: 1.5rem; height: 1.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,7 +259,6 @@
 
                 <div style="padding: 1.5rem;">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Left Column -->
                         <div class="space-y-4">
                             <div class="border-b border-gray-100 pb-3">
                                 <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Customer ID</label>
@@ -230,7 +276,6 @@
                             </div>
                         </div>
                         
-                        <!-- Right Column -->
                         <div class="space-y-4">
                             <div class="border-b border-gray-100 pb-3">
                                 <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Middle Name</label>
@@ -249,7 +294,6 @@
                         </div>
                     </div>
                     
-                    <!-- Additional Information Section -->
                     <div class="mt-6 border-t border-gray-200 pt-6">
                         <h4 class="text-sm font-semibold text-gray-700 mb-4">Account Information</h4>
                         <div class="bg-gray-50 rounded-lg p-4">
@@ -266,7 +310,6 @@
                         </div>
                     </div>
                     
-                    <!-- Status Badge -->
                     <div class="mt-4 flex justify-end">
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -277,7 +320,7 @@
                     </div>
                 </div>
 
-                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; background-color: #f9fafb; border-radius: 0 0 0.75rem 0.75rem;">
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; background-color: #f9fafb; border-radius: 0 0 0.75rem 0.75rem; position: sticky; bottom: 0; background: white;">
                     <button type="button" onclick="closeViewCustomerModal()" style="padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; color: #374151; background: white; border: 1px solid #d1d5db; border-radius: 0.5rem; cursor: pointer;">
                         Close
                     </button>
@@ -295,6 +338,183 @@
         let modalTitle = document.getElementById('modal-title');
         let submitButtonText = document.getElementById('submitButtonText');
         let currentViewCustomer = null;
+        
+        // Pagination variables
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        let filteredRows = [];
+        
+        // Filter and Pagination Functions
+        function filterCustomers() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const rows = document.querySelectorAll('.customer-row');
+            
+            filteredRows = [];
+            
+            rows.forEach(row => {
+                const id = row.querySelector('.customer-id')?.textContent.toLowerCase() || '';
+                const firstName = row.getAttribute('data-first-name') || '';
+                const lastName = row.getAttribute('data-last-name') || '';
+                const middleName = row.getAttribute('data-middle-name') || '';
+                const fullName = row.getAttribute('data-full-name') || '';
+                const contact = row.getAttribute('data-contact') || '';
+                
+                let matchesSearch = id.includes(searchTerm) || 
+                                   firstName.includes(searchTerm) || 
+                                   lastName.includes(searchTerm) || 
+                                   middleName.includes(searchTerm) ||
+                                   fullName.includes(searchTerm) ||
+                                   contact.includes(searchTerm);
+                
+                if (matchesSearch) {
+                    filteredRows.push(row);
+                }
+            });
+            
+            document.getElementById('totalVisibleCount').textContent = rows.length;
+            document.getElementById('totalRecords').textContent = filteredRows.length;
+            document.getElementById('visibleCount').textContent = filteredRows.length;
+            
+            // Update statistics for filtered results
+            updateFilteredStatistics();
+            
+            // Reset to first page and render
+            currentPage = 1;
+            renderCustomerPage();
+        }
+        
+        function updateFilteredStatistics() {
+            // Update total customers count (filtered)
+            document.getElementById('totalCustomersCount').textContent = filteredRows.length;
+            
+            // Update most recent customer in filtered results
+            if (filteredRows.length > 0) {
+                const firstRow = filteredRows[0];
+                const firstName = firstRow.querySelector('.first-name')?.textContent || '';
+                const lastName = firstRow.querySelector('.last-name')?.textContent || '';
+                document.getElementById('mostRecentCustomer').textContent = `${firstName} ${lastName}`;
+            } else {
+                document.getElementById('mostRecentCustomer').textContent = '—';
+            }
+            
+            // Count new this month from filtered results
+            let newThisMonth = 0;
+            filteredRows.forEach(row => {
+                const createdDate = row.querySelector('.created-date')?.textContent || '';
+                if (createdDate.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/)) {
+                    newThisMonth++;
+                }
+            });
+            document.getElementById('newThisMonthCount').textContent = newThisMonth;
+        }
+        
+        function renderCustomerPage() {
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const pageRows = filteredRows.slice(start, end);
+            
+            // Hide all rows first
+            document.querySelectorAll('.customer-row').forEach(row => {
+                row.style.display = 'none';
+            });
+            
+            // Show rows for current page
+            pageRows.forEach(row => {
+                row.style.display = '';
+            });
+            
+            // Update pagination info
+            const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+            const startRecord = filteredRows.length > 0 ? start + 1 : 0;
+            const endRecord = Math.min(end, filteredRows.length);
+            
+            document.getElementById('pageStart').textContent = startRecord;
+            document.getElementById('pageEnd').textContent = endRecord;
+            document.getElementById('totalRecords').textContent = filteredRows.length;
+            
+            // Render pagination buttons
+            renderPaginationButtons(totalPages);
+        }
+        
+        function renderPaginationButtons(totalPages) {
+            const container = document.getElementById('paginationNumbers');
+            if (!container) return;
+            
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            let html = '';
+            
+            // Previous button
+            html += `
+                <button onclick="changeCustomerPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}
+                    class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${currentPage === 1 ? 'cursor-not-allowed opacity-50' : ''}">
+                    <span class="sr-only">Previous</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            
+            // Page numbers
+            const maxVisible = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+            
+            if (endPage - startPage + 1 < maxVisible) {
+                startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+            
+            if (startPage > 1) {
+                html += `<button onclick="changeCustomerPage(1)" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">1</button>`;
+                if (startPage > 2) {
+                    html += `<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>`;
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                html += `
+                    <button onclick="changeCustomerPage(${i})" 
+                        class="relative inline-flex items-center px-4 py-2 text-sm font-semibold ${i === currentPage ? 'bg-blue-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}">
+                        ${i}
+                    </button>
+                `;
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    html += `<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>`;
+                }
+                html += `<button onclick="changeCustomerPage(${totalPages})" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">${totalPages}</button>`;
+            }
+            
+            // Next button
+            html += `
+                <button onclick="changeCustomerPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}
+                    class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${currentPage === totalPages ? 'cursor-not-allowed opacity-50' : ''}">
+                    <span class="sr-only">Next</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            
+            container.innerHTML = html;
+        }
+        
+        function changeCustomerPage(page) {
+            const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            renderCustomerPage();
+        }
+        
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            filterCustomers();
+        }
 
         function openAddModal() {
             document.getElementById('customer_id').value = '';
@@ -321,7 +541,7 @@
             modal.style.display = 'none';
             document.body.style.overflow = 'auto';
         }
-        
+
         async function viewCustomer(id) {
             try {
                 const response = await fetch(`/staff/customers/${id}`);
@@ -331,22 +551,18 @@
                 }
                 
                 const customer = await response.json();
-                console.log('Customer data:', customer);
                 
-                // Populate view modal
                 document.getElementById('view_customer_id').textContent = customer.id || '-';
                 document.getElementById('view_first_name').textContent = customer.first_name || '-';
                 document.getElementById('view_middle_name').textContent = customer.middle_name || '—';
                 document.getElementById('view_last_name').textContent = customer.last_name || '-';
                 document.getElementById('view_contact_number').textContent = customer.contact_number || '-';
                 
-                // Full Name
                 let fullName = customer.first_name || '';
                 if (customer.middle_name) fullName += ' ' + customer.middle_name;
                 fullName += ' ' + (customer.last_name || '');
                 document.getElementById('view_full_name').textContent = fullName.trim();
                 
-                // Created Date
                 if (customer.created_at) {
                     const date = new Date(customer.created_at);
                     document.getElementById('view_created_date').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
@@ -354,7 +570,6 @@
                     document.getElementById('view_created_date').textContent = '-';
                 }
                 
-                // Updated Date
                 if (customer.updated_at && customer.updated_at !== customer.created_at) {
                     const updatedDate = new Date(customer.updated_at);
                     document.getElementById('view_updated_date').textContent = updatedDate.toLocaleDateString() + ' ' + updatedDate.toLocaleTimeString();
@@ -364,10 +579,7 @@
                     document.getElementById('view_updated_date').textContent = '-';
                 }
                 
-                // Store current customer for edit button
                 currentViewCustomer = customer;
-                
-                // Show modal
                 document.getElementById('viewCustomerModal').style.display = 'block';
                 document.body.style.overflow = 'hidden';
                 
@@ -437,7 +649,7 @@
         });
 
         async function deleteCustomer(id) {
-            if (confirm('Are you sure you want to delete this customer?')) {
+            if (confirm('Are you sure you want to delete this customer? This will also delete all associated transactions.')) {
                 try {
                     const response = await fetch(`/staff/customers/${id}`, {
                         method: 'DELETE',
@@ -450,7 +662,8 @@
                     if (response.ok) {
                         window.location.reload();
                     } else {
-                        alert('Error deleting customer');
+                        const data = await response.json();
+                        alert('Error deleting customer: ' + (data.message || 'Unknown error'));
                     }
                 } catch (error) {
                     console.error('Error:', error);
@@ -466,21 +679,31 @@
         });
         
         const viewCustomerModal = document.getElementById('viewCustomerModal');
-        viewCustomerModal.addEventListener('click', function(event) {
-            if (event.target === viewCustomerModal) {
-                closeViewCustomerModal();
-            }
-        });
+        if (viewCustomerModal) {
+            viewCustomerModal.addEventListener('click', function(event) {
+                if (event.target === viewCustomerModal) {
+                    closeViewCustomerModal();
+                }
+            });
+        }
 
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
                 if (modal.style.display === 'block') {
                     closeModal();
                 }
-                if (viewCustomerModal.style.display === 'block') {
+                if (viewCustomerModal && viewCustomerModal.style.display === 'block') {
                     closeViewCustomerModal();
                 }
             }
+        });
+        
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('searchInput').addEventListener('keyup', filterCustomers);
+            setTimeout(() => {
+                filterCustomers();
+            }, 100);
         });
     </script>
 </x-staff-layout>

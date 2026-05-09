@@ -9,18 +9,12 @@ use Illuminate\Http\Request;
 
 class ServiceCategoryController extends Controller
 {
-    // This method is called from the route /admin/service-categories (for the view)
-    // But you're using it as an API endpoint. Let's separate them.
-    
     public function index()
     {
-        // This is called from the services view via the @json directive
-        // Return the collection for the view
         $categories = ServiceCategory::with('serviceTypes')->orderBy('created_at', 'desc')->get();
-        return $categories; // Return collection directly for the view
+        return view('categories', compact('categories'));
     }
 
-    // API endpoint for getting categories data
     public function getCategoriesData()
     {
         $categories = ServiceCategory::with('serviceTypes')->orderBy('created_at', 'desc')->get();
@@ -29,10 +23,8 @@ class ServiceCategoryController extends Controller
     
     public function show(ServiceCategory $serviceCategory)
     {
-        // Load the service types count
         $serviceCategory->loadCount('serviceTypes');
         
-        // Make sure description is properly retrieved
         return response()->json([
             'id' => $serviceCategory->id,
             'category_name' => $serviceCategory->category_name,
@@ -42,7 +34,6 @@ class ServiceCategoryController extends Controller
         ]);
     }
 
-    // Alias for show (if needed)
     public function showJson(ServiceCategory $serviceCategory)
     {
         return $this->show($serviceCategory);
@@ -55,7 +46,6 @@ class ServiceCategoryController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        // Generate new ID (SC1, SC2, SC3, etc.)
         $lastCategory = ServiceCategory::orderBy('id', 'desc')->first();
         if ($lastCategory) {
             $lastNumber = intval(substr($lastCategory->id, 2));

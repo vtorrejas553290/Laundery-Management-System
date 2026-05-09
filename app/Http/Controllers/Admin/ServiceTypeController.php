@@ -12,7 +12,7 @@ class ServiceTypeController extends Controller
     public function index()
     {
         $serviceTypes = ServiceType::with('category')->orderBy('created_at', 'desc')->get();
-        $categories = ServiceCategory::all(); // Make sure this returns the collection
+        $categories = ServiceCategory::all();
         return view('services', compact('serviceTypes', 'categories'));
     }
 
@@ -42,7 +42,6 @@ class ServiceTypeController extends Controller
             'price_per_load' => 'required|numeric|min:0',
         ]);
 
-        // Generate new ID (ST1, ST2, ST3, etc.)
         $lastService = ServiceType::orderBy('id', 'desc')->first();
         if ($lastService) {
             $lastNumber = intval(substr($lastService->id, 2));

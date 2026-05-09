@@ -32,7 +32,8 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/admin/weekly-sales', [DashboardController::class, 'getWeeklySales'])->name('admin.weekly-sales');
+    Route::get('/weekly-sales', [DashboardController::class, 'getWeeklySales'])->name('weekly-sales');
+    
     // Customers CRUD
     Route::get('/customers', [CustomersController::class, 'index'])->name('customers');
     Route::post('/customers', [CustomersController::class, 'store'])->name('customers.store');
@@ -49,7 +50,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/service-categories/{serviceCategory}', [ServiceCategoryController::class, 'show'])->name('service-categories.show');
     Route::get('/service-categories/{serviceCategory}/json', [ServiceCategoryController::class, 'showJson'])->name('service-categories.show.json');
 
-    
     // Service Types CRUD
     Route::get('/services', [ServiceTypeController::class, 'index'])->name('services');
     Route::post('/service-types', [ServiceTypeController::class, 'store'])->name('service-types.store');
@@ -67,7 +67,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     
     // Transactions CRUD
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions');
-    Route::get('/transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');  // ADD THIS LINE
+    Route::get('/transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');
+    Route::get('/transactions/extra-items/{id}', [TransactionController::class, 'getExtraItemsTotal'])->name('transactions.extra-items');
+    Route::get('/transactions/service-price/{id}', [TransactionController::class, 'getServicePrice'])->name('transactions.service-price');  // MOVED INSIDE THE GROUP
     Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
     Route::put('/transactions/{transaction}', [TransactionController::class, 'update'])->name('transactions.update');
     Route::delete('/transactions/{transaction}', [TransactionController::class, 'destroy'])->name('transactions.destroy');
@@ -125,6 +127,8 @@ Route::prefix('staff')->name('staff.')->group(function () {
         // Staff Transactions Routes
         Route::get('transactions', [StaffTransactionsController::class, 'index'])->name('transactions');
         Route::get('transactions/{id}', [StaffTransactionsController::class, 'show'])->name('transactions.show');
+        Route::get('transactions/extra-items/{id}', [StaffTransactionsController::class, 'getExtraItemsTotal'])->name('transactions.extra-items');
+        Route::get('transactions/service-price/{id}', [StaffTransactionsController::class, 'getServicePrice'])->name('transactions.service-price');  // ADD THIS
         Route::post('transactions', [StaffTransactionsController::class, 'store'])->name('transactions.store');
         Route::put('transactions/{id}', [StaffTransactionsController::class, 'update'])->name('transactions.update');
         Route::delete('transactions/{id}', [StaffTransactionsController::class, 'destroy'])->name('transactions.destroy');

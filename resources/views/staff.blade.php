@@ -13,6 +13,25 @@
             </button>
         </div>
 
+        <!-- Search Bar -->
+        <div class="mb-4 flex flex-wrap gap-4 items-center justify-between">
+            <div class="flex gap-4">
+                <div class="relative">
+                    <input type="text" id="searchInput" placeholder="Search by name, ID, email, or contact..." 
+                        class="w-80 px-4 py-2 pl-10 pr-4 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <button onclick="clearSearch()" class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+                    Clear Search
+                </button>
+            </div>
+            <div class="text-sm text-gray-500">
+                Showing <span id="visibleCount">0</span> of <span id="totalVisibleCount">0</span> staff members
+            </div>
+        </div>
+
         <!-- Staff Table -->
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
             <div class="p-6">
@@ -31,16 +50,23 @@
                                 <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200">
+                        <tbody id="staffTableBody" class="divide-y divide-gray-200">
                             @forelse($staff as $member)
-                            <tr class="hover:bg-gray-50 transition-colors duration-200">
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $member->id }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ $member->first_name }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $member->middle_name ?? '—' }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ $member->last_name }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $member->email }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-600">{{ $member->contact }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ $member->age }}</td>
+                            <tr class="hover:bg-gray-50 transition-colors duration-200 staff-row" 
+                                data-id="{{ $member->id }}"
+                                data-first-name="{{ strtolower($member->first_name) }}"
+                                data-middle-name="{{ strtolower($member->middle_name ?? '') }}"
+                                data-last-name="{{ strtolower($member->last_name) }}"
+                                data-full-name="{{ strtolower($member->first_name . ' ' . $member->last_name) }}"
+                                data-email="{{ strtolower($member->email) }}"
+                                data-contact="{{ strtolower($member->contact) }}">
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900 staff-id">{{ $member->id }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 first-name">{{ $member->first_name }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600 middle-name">{{ $member->middle_name ?? '—' }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 last-name">{{ $member->last_name }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600 email">{{ $member->email }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600 contact">{{ $member->contact }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 age">{{ $member->age }}</td>
                                 <td class="px-4 py-3 text-right">
                                     <div class="flex justify-end gap-2">
                                         <button onclick="viewStaff('{{ $member->id }}')" class="text-green-600 hover:text-green-800 p-1">
@@ -63,33 +89,35 @@
                                 </td>
                             </tr>
                             @empty
-                            <tr>
+                            <tr id="noRecordsRow">
                                 <td colspan="8" class="px-4 py-8 text-center text-gray-500">No staff members found. Click "Add Staff" to create one.</td>
                             </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-        
-        <!-- Statistics Summary -->
-        <div class="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div class="bg-blue-50 rounded-lg border border-blue-200 p-6">
-                <h3 class="text-sm font-medium text-blue-800 mb-2">Total Staff</h3>
-                <p class="text-2xl font-bold text-blue-900">{{ $staff->count() }}</p>
-            </div>
-            <div class="bg-green-50 rounded-lg border border-green-200 p-6">
-                <h3 class="text-sm font-medium text-green-800 mb-2">Average Age</h3>
-                <p class="text-2xl font-bold text-green-900">{{ number_format($staff->avg('age') ?? 0, 0) }} yrs</p>
-            </div>
-            <div class="bg-purple-50 rounded-lg border border-purple-200 p-6">
-                <h3 class="text-sm font-medium text-purple-800 mb-2">Youngest</h3>
-                <p class="text-2xl font-bold text-purple-900">{{ $staff->min('age') ?? 0 }} yrs</p>
-            </div>
-            <div class="bg-orange-50 rounded-lg border border-orange-200 p-6">
-                <h3 class="text-sm font-medium text-orange-800 mb-2">Oldest</h3>
-                <p class="text-2xl font-bold text-orange-900">{{ $staff->max('age') ?? 0 }} yrs</p>
+                
+                <!-- Pagination -->
+                <div id="paginationContainer" class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
+                    <div class="flex flex-1 justify-between sm:hidden">
+                        <button id="prevMobileBtn" class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</button>
+                        <button id="nextMobileBtn" class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Next</button>
+                    </div>
+                    <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-sm text-gray-700">
+                                Showing <span id="pageStart" class="font-medium">0</span>
+                                to <span id="pageEnd" class="font-medium">0</span>
+                                of <span id="totalRecords" class="font-medium">0</span> results
+                            </p>
+                        </div>
+                        <div>
+                            <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" id="paginationNumbers">
+                                <!-- Pagination buttons will be generated here -->
+                            </nav>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -99,9 +127,9 @@
         <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);"></div>
         
         <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1rem;">
-            <div style="position: relative; background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 32rem; width: 100%; margin: auto;">
+            <div style="position: relative; background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 32rem; width: 100%; margin: auto; max-height: 90vh; overflow-y: auto;">
                 
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: white; z-index: 10;">
                     <h3 style="font-size: 1.25rem; font-weight: 600; color: #111827;" id="modal-title">Add New Staff Member</h3>
                     <button onclick="closeModal()" style="color: #9ca3af; background: none; border: none; cursor: pointer;">
                         <svg style="width: 1.5rem; height: 1.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -281,9 +309,9 @@
         <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);"></div>
         
         <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1rem;">
-            <div style="position: relative; background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 56rem; width: 100%; margin: auto;">
+            <div style="position: relative; background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 56rem; width: 100%; margin: auto; max-height: 90vh; overflow-y: auto;">
                 
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: white; z-index: 10;">
                     <h3 style="font-size: 1.25rem; font-weight: 600; color: #111827;">Staff Member Details</h3>
                     <button onclick="closeViewStaffModal()" style="color: #9ca3af; background: none; border: none; cursor: pointer;">
                         <svg style="width: 1.5rem; height: 1.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -359,7 +387,7 @@
                     </div>
                 </div>
 
-                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; background-color: #f9fafb; border-radius: 0 0 0.75rem 0.75rem;">
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; background-color: #f9fafb; border-radius: 0 0 0.75rem 0.75rem; position: sticky; bottom: 0; background: white;">
                     <button type="button" onclick="closeViewStaffModal()" style="padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; color: #374151; background: white; border: 1px solid #d1d5db; border-radius: 0.5rem; cursor: pointer;">
                         Close
                     </button>
@@ -382,6 +410,11 @@
         let passwordInput = document.getElementById('password');
         let passwordRequired = document.getElementById('password_required');
         let currentViewStaff = null;
+        
+        // Pagination variables
+        let currentPage = 1;
+        const rowsPerPage = 5;
+        let filteredRows = [];
 
         function calculateAge(birthday) {
             if (!birthday) return '';
@@ -407,6 +440,152 @@
 
         birthdayInput.addEventListener('change', updateAge);
         birthdayInput.addEventListener('input', updateAge);
+        
+        // Filter and Pagination Functions
+        function filterStaff() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const rows = document.querySelectorAll('.staff-row');
+            
+            filteredRows = [];
+            
+            rows.forEach(row => {
+                const id = row.querySelector('.staff-id')?.textContent.toLowerCase() || '';
+                const firstName = row.getAttribute('data-first-name') || '';
+                const lastName = row.getAttribute('data-last-name') || '';
+                const middleName = row.getAttribute('data-middle-name') || '';
+                const fullName = row.getAttribute('data-full-name') || '';
+                const email = row.getAttribute('data-email') || '';
+                const contact = row.getAttribute('data-contact') || '';
+                
+                let matchesSearch = id.includes(searchTerm) || 
+                                   firstName.includes(searchTerm) || 
+                                   lastName.includes(searchTerm) || 
+                                   middleName.includes(searchTerm) ||
+                                   fullName.includes(searchTerm) ||
+                                   email.includes(searchTerm) ||
+                                   contact.includes(searchTerm);
+                
+                if (matchesSearch) {
+                    filteredRows.push(row);
+                }
+            });
+            
+            document.getElementById('totalVisibleCount').textContent = rows.length;
+            document.getElementById('totalRecords').textContent = filteredRows.length;
+            document.getElementById('visibleCount').textContent = filteredRows.length;
+            
+            // Reset to first page and render
+            currentPage = 1;
+            renderStaffPage();
+        }
+        
+        function renderStaffPage() {
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const pageRows = filteredRows.slice(start, end);
+            
+            // Hide all rows first
+            document.querySelectorAll('.staff-row').forEach(row => {
+                row.style.display = 'none';
+            });
+            
+            // Show rows for current page
+            pageRows.forEach(row => {
+                row.style.display = '';
+            });
+            
+            // Update pagination info
+            const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+            const startRecord = filteredRows.length > 0 ? start + 1 : 0;
+            const endRecord = Math.min(end, filteredRows.length);
+            
+            document.getElementById('pageStart').textContent = startRecord;
+            document.getElementById('pageEnd').textContent = endRecord;
+            document.getElementById('totalRecords').textContent = filteredRows.length;
+            
+            // Render pagination buttons
+            renderPaginationButtons(totalPages);
+        }
+        
+        function renderPaginationButtons(totalPages) {
+            const container = document.getElementById('paginationNumbers');
+            if (!container) return;
+            
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            let html = '';
+            
+            // Previous button
+            html += `
+                <button onclick="changeStaffPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}
+                    class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${currentPage === 1 ? 'cursor-not-allowed opacity-50' : ''}">
+                    <span class="sr-only">Previous</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            
+            // Page numbers
+            const maxVisible = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+            
+            if (endPage - startPage + 1 < maxVisible) {
+                startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+            
+            if (startPage > 1) {
+                html += `<button onclick="changeStaffPage(1)" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">1</button>`;
+                if (startPage > 2) {
+                    html += `<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>`;
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                html += `
+                    <button onclick="changeStaffPage(${i})" 
+                        class="relative inline-flex items-center px-4 py-2 text-sm font-semibold ${i === currentPage ? 'bg-blue-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}">
+                        ${i}
+                    </button>
+                `;
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    html += `<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>`;
+                }
+                html += `<button onclick="changeStaffPage(${totalPages})" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">${totalPages}</button>`;
+            }
+            
+            // Next button
+            html += `
+                <button onclick="changeStaffPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}
+                    class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${currentPage === totalPages ? 'cursor-not-allowed opacity-50' : ''}">
+                    <span class="sr-only">Next</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            
+            container.innerHTML = html;
+        }
+        
+        function changeStaffPage(page) {
+            const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            renderStaffPage();
+        }
+        
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            filterStaff();
+        }
 
         function openAddModal() {
             document.getElementById('staff_id').value = '';
@@ -467,12 +646,9 @@
                 }
                 
                 const staff = await response.json();
-                console.log('Staff data:', staff);
                 
-                // Populate view modal
                 document.getElementById('view_staff_id').textContent = staff.id || '-';
                 
-                // Full Name
                 let fullName = staff.first_name || '';
                 if (staff.middle_name) fullName += ' ' + staff.middle_name;
                 fullName += ' ' + (staff.last_name || '');
@@ -483,7 +659,6 @@
                 document.getElementById('view_contact').textContent = staff.contact || '-';
                 document.getElementById('view_address').textContent = staff.address || '-';
                 
-                // Birthday
                 if (staff.birthday) {
                     const birthday = new Date(staff.birthday);
                     document.getElementById('view_birthday').textContent = birthday.toLocaleDateString();
@@ -491,7 +666,6 @@
                     document.getElementById('view_birthday').textContent = '-';
                 }
                 
-                // Created Date
                 if (staff.created_at) {
                     const date = new Date(staff.created_at);
                     document.getElementById('view_created_date').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
@@ -499,7 +673,6 @@
                     document.getElementById('view_created_date').textContent = '-';
                 }
                 
-                // Updated Date
                 if (staff.updated_at && staff.updated_at !== staff.created_at) {
                     const updatedDate = new Date(staff.updated_at);
                     document.getElementById('view_updated_date').textContent = updatedDate.toLocaleDateString() + ' ' + updatedDate.toLocaleTimeString();
@@ -509,10 +682,7 @@
                     document.getElementById('view_updated_date').textContent = '-';
                 }
                 
-                // Store current staff for edit button
                 currentViewStaff = staff;
-                
-                // Show modal
                 document.getElementById('viewStaffModal').style.display = 'block';
                 document.body.style.overflow = 'hidden';
                 
@@ -563,7 +733,6 @@
                 _method: staffId ? 'PUT' : 'POST'
             };
             
-            // Remove password from data if it's empty during edit
             if (staffId && !formData.password) {
                 delete formData.password;
             }
@@ -624,21 +793,31 @@
         });
         
         const viewStaffModal = document.getElementById('viewStaffModal');
-        viewStaffModal.addEventListener('click', function(event) {
-            if (event.target === viewStaffModal) {
-                closeViewStaffModal();
-            }
-        });
+        if (viewStaffModal) {
+            viewStaffModal.addEventListener('click', function(event) {
+                if (event.target === viewStaffModal) {
+                    closeViewStaffModal();
+                }
+            });
+        }
 
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
                 if (modal.style.display === 'block') {
                     closeModal();
                 }
-                if (viewStaffModal.style.display === 'block') {
+                if (viewStaffModal && viewStaffModal.style.display === 'block') {
                     closeViewStaffModal();
                 }
             }
+        });
+        
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('searchInput').addEventListener('keyup', filterStaff);
+            setTimeout(() => {
+                filterStaff();
+            }, 100);
         });
     </script>
 </x-app-layout>
